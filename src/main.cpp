@@ -1,5 +1,3 @@
-#include "src/gui_core/ScanBufferDraw.h"
-
 #include <SDL.h>
 #include <SDL_mutex.h>
 #include <SDL_thread.h>
@@ -18,7 +16,7 @@ volatile bool quit = false; // Quit flag
 volatile bool drawDone = false; // Quit complete flag
 volatile int writeBuffer = 0; // which buffer is being written (other will be read)
 volatile int frameWait = 0; // frames waiting
-BYTE* base = nullptr; // graphics base
+char* base = nullptr; // graphics base
 int rowBytes = 0;
 
 // User/Core shared data:
@@ -84,7 +82,7 @@ int main()
     gDataLock = SDL_CreateMutex(); // Initialize lock, one reader at a time
     screenSurface = SDL_GetWindowSurface(window); // Get window surface
 
-    base = (BYTE*)screenSurface->pixels;
+    base = (char*)screenSurface->pixels;
     int w = screenSurface->w;
     rowBytes = screenSurface->pitch;
     int pixBytes = rowBytes / w;

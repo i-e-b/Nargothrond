@@ -2,7 +2,6 @@
 #define SdlBase_App_Start_h
 
 #include <SDL.h>
-#include "src/gui_core/ScanBufferDraw.h"
 #include "scene.h"
 
 /******************************************

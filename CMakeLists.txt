@@ -33,11 +33,6 @@ ENDIF()
 add_executable(SdlBase
         # exe entry point
         src/main.cpp
-        # core drawing and threading stuff
-        src/gui_core/BinHeap.cpp src/gui_core/BinHeap.h
-        src/gui_core/ScanBufferDraw.cpp src/gui_core/ScanBufferDraw.h
-        src/gui_core/ScanBufferFont.cpp src/gui_core/ScanBufferFont.h
-        src/gui_core/Sort.cpp src/gui_core/Sort.h
         # base type library
         src/types/MathBits.h src/types/RawData.h
         src/types/ArenaAllocator.cpp src/types/ArenaAllocator.h

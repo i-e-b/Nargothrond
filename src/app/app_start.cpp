@@ -1,6 +1,5 @@
 #include "app_start.h"
 
-#include "src/gui_core/ScanBufferFont.h"
 #include "src/types/MemoryManager.h"
 #include "src/types/String.h"
 #include "scene.h"
@@ -37,7 +36,7 @@ void RenderFrame(volatile ApplicationGlobalState *state,SDL_Surface *screen){
     if (state == nullptr) return;
     if (screen == nullptr) return;
 
-    auto base = (BYTE*)screen->pixels;
+    auto base = (char*)screen->pixels;
 
     int x = 0, c = state->t * 25, j;
 
