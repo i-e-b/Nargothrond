@@ -43,7 +43,7 @@ add_executable(SdlBase
         src/types/String.cpp src/types/String.h
         # user app entry point
         src/app/app_start.cpp src/app/app_start.h
-        src/app/scene.h)
+        src/app/scene.h src/synth/map_synth.h src/synth/map_synth.cpp)
 
 configure_file(lib/SDL2-devel-2.0.9-VC/SDL2-2.0.9/lib/x86/SDL2.dll SDL2.dll COPYONLY)
 target_link_libraries(SdlBase "${SDL2_LINK_DIR}")

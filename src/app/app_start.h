@@ -28,6 +28,10 @@ typedef struct ApplicationGlobalState {
     bool running;
 
     int t; // temp for test
+
+    int mapSize; // height and width of color and height maps
+    char* colorMap; // color map
+    char* heightMap; // height map
 } ApplicationGlobalState;
 
 
