@@ -12,7 +12,8 @@ using namespace std;
 // Two-thread rendering stuff:
 SDL_mutex* gDataLock = nullptr; // Data access semaphore, for the read buffer
 SDL_Window* window; //The window we'll be rendering to
-ScanBuffer *BufferA, *BufferB; // pair of scanline buffers. One is written while the other is read
+SDL_Surface* screenSurface;// The surface contained by the window
+
 volatile bool quit = false; // Quit flag
 volatile bool drawDone = false; // Quit complete flag
 volatile int writeBuffer = 0; // which buffer is being written (other will be read)
@@ -23,7 +24,7 @@ int rowBytes = 0;
 // User/Core shared data:
 volatile ApplicationGlobalState gState = {};
 
-// Scanline buffer to pixel buffer rendering on a separate thread
+// voxel rendering on a separate thread
 int RenderWorker(void*)
 {
     while (base == nullptr) {
@@ -36,11 +37,10 @@ int RenderWorker(void*)
         }
 
         SDL_LockMutex(gDataLock);
-        auto scanBuf = (writeBuffer > 0) ? BufferA : BufferB; // must be opposite way to writing loop
         SDL_UnlockMutex(gDataLock);
 
-        RenderScanBufferToFrameBuffer(scanBuf, base);
-        SDL_UpdateWindowSurface(window);                        // update the surface -- need to do this every frame.
+        RenderFrame(&gState, screenSurface);
+        SDL_UpdateWindowSurface(window); // update the surface -- need to do this every frame.
 
         SDL_LockMutex(gDataLock);
         frameWait = 0;
@@ -63,8 +63,6 @@ void HandleEvents() {
 
 int main()
 {
-    // The surface contained by the window
-    SDL_Surface* screenSurface;
 
     if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
         cout << "SDL initialization failed. SDL Error: " << SDL_GetError();
@@ -81,22 +79,18 @@ int main()
     }
 
     // Let the app startup
-    StartUp();
+    StartUp(&gState);
 
     gDataLock = SDL_CreateMutex(); // Initialize lock, one reader at a time
     screenSurface = SDL_GetWindowSurface(window); // Get window surface
 
     base = (BYTE*)screenSurface->pixels;
     int w = screenSurface->w;
-    int h = screenSurface->h;
     rowBytes = screenSurface->pitch;
     int pixBytes = rowBytes / w;
 
     cout << "\r\nScreen format: " << SDL_GetPixelFormatName(screenSurface->format->format);
     cout << "\r\nBytesPerPixel: " << (pixBytes) << ", exact? " << (((screenSurface->pitch % pixBytes) == 0) ? "yes" : "no");
-
-    BufferA = InitScanBuffer(w, h);
-    BufferB = InitScanBuffer(w, h);
 
     // run the rendering thread
 #ifdef MULTI_THREAD
@@ -111,8 +105,6 @@ int main()
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     // Draw loop                                                                                      //
     ////////////////////////////////////////////////////////////////////////////////////////////////////
-    auto writingScanBuf = BufferA;
-    auto readingScanBuf = BufferB;
     gState.running = true;
     while (gState.running) {
         uint32_t fst = SDL_GetTicks();
@@ -124,19 +116,14 @@ int main()
             // If render can't keep up with frameWait, we skip this frame and draw to the same buffer.
             SDL_LockMutex(gDataLock);                               // lock
             writeBuffer = 1 - writeBuffer;                          // switch buffer
-            writingScanBuf = (writeBuffer > 0) ? BufferB : BufferA;        // MUST be opposite way to writing loop
-            readingScanBuf = (writeBuffer > 0) ? BufferA : BufferB;        // MUST be same way as writing loop
 
-    #ifdef COPY_SCAN_BUFFERS
-            CopyScanBuffer(readingScanBuf, writingScanBuf);
-    #endif
             frameWait = 1;                                          // signal to the other thread that the buffer has changed
             SDL_UnlockMutex(gDataLock);                             // unlock
         }
 #endif
 
         // Pick the write buffer and set switch points:
-        DrawToScanBuffer(writingScanBuf, frame++, fTime);
+        UpdateModel(&gState, frame++, fTime);
 
 #ifndef MULTI_THREAD
         // if not threaded, render immediately
@@ -171,7 +158,7 @@ int main()
     cout << "\r\nFPS ave = " << avgFPS << "\r\nIdle % = " << (100 * idleFraction);
 
     // Let the app deallocate etc
-    Shutdown();
+    Shutdown(&gState);
 
 #ifdef MULTI_THREAD
     while (!drawDone) { SDL_Delay(100); }// wait for the renderer to finish
@@ -187,9 +174,6 @@ int main()
     }
 #endif
 
-    // Close up shop
-    FreeScanBuffer(BufferA);
-    FreeScanBuffer(BufferB);
 #ifdef MULTI_THREAD
     SDL_WaitThread(threadA, nullptr);
 #endif

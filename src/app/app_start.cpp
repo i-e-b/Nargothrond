@@ -3,6 +3,7 @@
 #include "src/gui_core/ScanBufferFont.h"
 #include "src/types/MemoryManager.h"
 #include "src/types/String.h"
+#include "scene.h"
 
 // Handy SDL docs: https://wiki.libsdl.org/
 
@@ -17,70 +18,49 @@ void HandleEvent(SDL_Event *event, volatile ApplicationGlobalState *state) {
     }
 }
 
-void writeString(ScanBuffer *scanBuf, String *line, int x, int y, int z, uint32_t color) {
-    while (auto c = StringDequeue(line)) {
-        AddGlyph(scanBuf, c, x, y, z, color);
-        x += 8;
-    }
-}
-
-void drawInfoMessage(ScanBuffer *scanBuf, int frame, uint32_t frameTime) {
-    if (frameTime < 1) frameTime = 1;
-    auto line = StringNewFormat("Frame rate:  \x02; Frame count: \x02.", 1000 / frameTime, frame);
-    writeString(scanBuf, line, 16, 40, 10, 0x7755ff);
-
-    size_t allocBytes, freeBytes, largestBlock;
-    int allocZones, freeZones, refCount;
-    ArenaGetState(MMCurrent(), &allocBytes, &freeBytes, &allocZones, &freeZones, &refCount, &largestBlock);
-
-    StringAppendFormat(line, "Area use: alloc \x02 bytes; free \x02 bytes; largest free block \x02 bytes.",
-                       allocBytes, freeBytes, largestBlock);
-    writeString(scanBuf, line, 16, 100, 10, 0x77ffaa);
-
-    StringAppendFormat(line, "alloc \x02 zones; free \x02 zones; total \x02 objects referenced.",
-                       allocZones, freeZones, refCount);
-    writeString(scanBuf, line, 16, 120, 10, 0x77ffaa);
-}
-
-void drawMouseHalo(ScanBuffer *scanBuf){
-    int x,y;
-    int sz = 20;
-    int r=0xaa,g=0x77,b= 0x77;
-    if (SDL_GetMouseState(&x, &y) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
-        g = b = 0x00;
-        sz = 15;
-    }
-    OutlineEllipse(scanBuf, x, y, sz, sz, 5, 5, r, g, b);
-}
-
-void DrawToScanBuffer(ScanBuffer *scanBuf, int frame, uint32_t frameTime) {
+void UpdateModel(volatile ApplicationGlobalState *state, int frame, uint32_t frameTime) {
     MMPush(1 MEGABYTE); // prepare a per-frame bump allocator
 
-    if (frame < 1) {
-        ClearScanBuffer(scanBuf); // wipe out switch-point buffer
-        SetBackground(scanBuf, 10000, 50, 50, 70);
+    // todo: stuff
+    if (state == nullptr) return;
+    if (frame < 0) return;
+    if (frameTime < 0) return;
 
-        auto line = StringNew("Welcome to the sdl program base! Press any key to stop. Close window to exit");
-        writeString(scanBuf, line, 16, 30, 1, 0xffffff);
-
-        SetScanBufferResetPoint(scanBuf); // Allow us to 'reset' to the drawing to here
-                                          // TODO: later, allow push/pop?
-    }
-    else {
-        ResetScanBuffer(scanBuf); // 'undo' any changes after the last reset point
-
-        drawInfoMessage(scanBuf, frame, frameTime);
-        drawMouseHalo(scanBuf);
-    }
+    state->t++;
+    if (state->t > 10) state->t = 0;
 
     MMPop(); // wipe out anything we allocated in this frame.
 }
 
-void StartUp() {
-    StartManagedMemory(); // use the semi-auto memory helper
+void RenderFrame(volatile ApplicationGlobalState *state,SDL_Surface *screen){
+    // todo: stuff
+    if (state == nullptr) return;
+    if (screen == nullptr) return;
+
+    auto base = (BYTE*)screen->pixels;
+
+    int x = 0, c = state->t * 25, j;
+
+    int rowBytes = screen->pitch;
+
+    while (x < screen->w && x < screen->h){
+        j = (x*4) + (x*rowBytes);
+        base[j++] = (char)c; // B
+        base[j++] = (char)c; // G
+        base[j++] = (char)c; // R
+        x++;
+    }
 }
 
-void Shutdown() {
+void StartUp(volatile ApplicationGlobalState *state) {
+    StartManagedMemory(); // use the semi-auto memory helper
+
+    if (state == nullptr) return;
+    state->t = 1;
+}
+
+void Shutdown(volatile ApplicationGlobalState *state) {
     ShutdownManagedMemory(); // deallocate everything
+    if (state == nullptr) return;
 }
 
