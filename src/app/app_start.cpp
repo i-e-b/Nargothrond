@@ -38,8 +38,9 @@ void RenderFrame(volatile ApplicationGlobalState *state,SDL_Surface *screen){
     if (state == nullptr) return;
     if (screen == nullptr) return;
 
-    auto base = (char*)screen->pixels;
-    auto hmap = state->heightMap;
+    auto base = (BYTE*)screen->pixels;
+//    auto hmap = state->heightMap;
+    auto cmap = state->colorMap;
 
     int j;
 
@@ -47,16 +48,21 @@ void RenderFrame(volatile ApplicationGlobalState *state,SDL_Surface *screen){
 
     // for now, show the height map
     for (int y = 0; y < 512; ++y) {
-        int mapY = y*512;
+        int mapY = y*512*3;
         int bmpY = y*rowBytes;
 
         for (int x = 0; x < 512; ++x) {
-            char h = hmap[x+mapY];
+            //char h = hmap[x+mapY];
+            int i = (x*3)+mapY;
+
+            BYTE r = cmap[i++];
+            BYTE g = cmap[i++];
+            BYTE b = cmap[i++];
 
             j = (x*4) + bmpY;
-            base[j++] = h; // B
-            base[j++] = h; // G
-            base[j++] = h; // R
+            base[j++] = b; // B
+            base[j++] = g; // G
+            base[j++] = r; // R
         }
     }
 }
@@ -72,8 +78,11 @@ void StartUp(volatile ApplicationGlobalState *state) {
 
     // synthesise maps. This should be dynamic based on wider area later
     //state->heightMap = (char*)ArenaAllocateAndClear(MMCurrent(), 512*512); // the very basic allocator doesn't handle big maps.
-    state->heightMap = (char*)malloc(512*512);
+    state->heightMap = (BYTE*)malloc(512*512);
+    state->colorMap = (BYTE*)malloc(512*512*3);
+
     GenerateHeight(512, 5, state->heightMap);
+    GenerateColor(512, state->heightMap, state->colorMap);
 }
 
 void Shutdown(volatile ApplicationGlobalState *state) {

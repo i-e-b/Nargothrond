@@ -3,6 +3,7 @@
 
 #include <SDL.h>
 #include "scene.h"
+#include "types/general.h"
 
 /******************************************
  * Application settings                   *
@@ -30,8 +31,8 @@ typedef struct ApplicationGlobalState {
     int t; // temp for test
 
     int mapSize; // height and width of color and height maps
-    char* colorMap; // color map
-    char* heightMap; // height map
+    BYTE* colorMap; // color map
+    BYTE* heightMap; // height map
 } ApplicationGlobalState;
 
 

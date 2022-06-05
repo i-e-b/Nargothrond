@@ -7,11 +7,19 @@
 #include "types/MemoryManager.h"
 #include "types/Vector.h"
 
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+#define min(a,b) (((a) < (b)) ? (a) : (b))
+
 RegisterVectorStatics(vec)
 RegisterVectorFor(double, vec)
 
 int p[512];
 
+typedef struct rgbSample {
+    int r;
+    int g;
+    int b;
+} rgbSample;
 
 double fade(double t) {
     return t * t * t * (t * (t * 6 - 15) + 10);
@@ -89,19 +97,136 @@ int heightFunction(int seed, int x, int y) {
     return iv;
 }
 
-void GenerateHeight(int size, int seed, char *map) {
-    for (int y = 0; y < size; ++y) {
-        int yoff = y * size;
-        for (int x = 0; x < size; ++x) {
-            map[x + yoff] = (char)heightFunction(seed, x,y);
+inline void set(BYTE* map, int idx, int r, int g, int b){
+    map[idx++]=(BYTE)r;
+    map[idx++]=(BYTE)g;
+    map[idx++]=(BYTE)b;
+}
+inline rgbSample get(const BYTE* map, int idx){
+    rgbSample s = {};
+    s.r = (BYTE)map[idx++];
+    s.g = (BYTE)map[idx++];
+    s.b = (BYTE)map[idx++];
+    return s;
+}
+
+void heightToColor(int size, const BYTE* heightMap, BYTE* colorMap) {
+    int rowWidth = size * 3; // number of bytes in an image row
+
+    double falloff = 0.004; // how steep the shadows are. lower = sun is closer to horizon.
+    double fade = 0.2; // how sharp the peaks of shadows are. Lower = smoother
+    double maxDark = 0.65; // how dark shadows can get
+
+    // main color + shadow
+    for (int y = 0; y < size; y++) {
+        int yoff = y * rowWidth;
+        int yoffH = y * size;
+        double shadow = 0; // what height is in shadow
+        double shadowDarkness = 1.0; // how dark is the shadow (1.0 = light, 0.0=black)
+
+        for (int x = 0, xoff = 0; x < size; x++, xoff += 3) {
+            int hidx = yoffH + x;
+            int cidx = yoff + xoff;
+
+            double s = heightMap[hidx] / 255.0; // sample height, put in range 0..1
+            shadow = max(s, shadow) - falloff;
+
+            // really simple green->white
+            double r = s * s * s * 800 - 50;
+            double g = max(r, 50 + ((s * s) * 127));
+            double b = s * s * s * 800 - 50;
+
+            if (s < 0.2) { // water
+                r = 20;
+                g = 80;
+                b = 120;
+            } else if (s < 0.3) { // mud
+                double ms = 1.0 - (s * 2);
+                double gs = s * 2;
+                r = 140 * ms + r * gs;
+                g = 120 * ms + g * gs;
+                b = 110 * ms + b * gs;
+            }
+
+            // pin to range
+            r = max(0, min(255, r));
+            g = max(0, min(255, g));
+            b = max(0, min(255, b));
+
+            // darker if in shadow
+            if (shadow > s) {
+                shadowDarkness -= fade; // fade shadow in. Makes hill peaks looks less weird
+                if (shadowDarkness < maxDark) shadowDarkness = maxDark;
+
+                r = max(0, r * shadowDarkness);
+                g = max(0, g * shadowDarkness);
+                b = max(0, b * shadowDarkness);
+            } else {
+                shadowDarkness = 1.0; // reset for next shadow
+            }
+
+            set(colorMap, cidx, (int) r, (int) g, (int) b);
         }
     }
 }
 
-void GenerateColor(int size, const char *height, const char *color) {
+void blur(int size, BYTE* colorMap) {
+    int rowWidth = size * 3; // number of bytes in an image row
+
+    // simple kernel blur
+    for (int y = 1; y < size - 1; y++) {
+        int yoff_1 = (y - 1) * rowWidth;
+        int yoff_2 = (y) * rowWidth;
+        int yoff_3 = (y + 1) * rowWidth;
+
+        for (int x = 1, xoff = 0; x < size - 1; x++, xoff += 3) {
+            auto c_tl = get(colorMap, yoff_1 + xoff - 3);
+            auto c_ml = get(colorMap, yoff_2 + xoff - 3);
+            auto c_bl = get(colorMap, yoff_3 + xoff - 3);
+
+
+            auto c_tc = get(colorMap, yoff_1 + xoff);
+            auto c_mc = get(colorMap, yoff_2 + xoff);
+            auto c_bc = get(colorMap, yoff_3 + xoff);
+
+            auto c_tr = get(colorMap, yoff_1 + xoff + 3);
+            auto c_mr = get(colorMap, yoff_2 + xoff + 3);
+            auto c_br = get(colorMap, yoff_3 + xoff + 3);
+
+            double r = c_tl.r * 0.5 + c_tc.r * 0.75 + c_tr.r * 0.5 +
+                    c_ml.r * 0.75 + c_mc.r * 1.0 + c_mr.r * 0.75 +
+                    c_bl.r * 0.5 + c_bc.r * 0.75 + c_br.r * 0.5;
+
+            double g = c_tl.g * 0.5 + c_tc.g * 0.75 + c_tr.g * 0.5 +
+                    c_ml.g * 0.75 + c_mc.g * 1.0 + c_mr.g * 0.75 +
+                    c_bl.g * 0.5 + c_bc.g * 0.75 + c_br.g * 0.5;
+
+            double b = c_tl.b * 0.5 + c_tc.b * 0.75 + c_tr.b * 0.5 +
+                    c_ml.b * 0.75 + c_mc.b * 1.0 + c_mr.b * 0.75 +
+                    c_bl.b * 0.5 + c_bc.b * 0.75 + c_br.b * 0.5;
+
+
+            set(colorMap, yoff_2 + xoff, (int)r / 6, (int)g / 6, (int)b / 6);
+        }
+    }
+}
+
+void GenerateHeight(int size, int seed, BYTE *map) {
+    for (int y = 0; y < size; ++y) {
+        int yoff = y * size;
+        for (int x = 0; x < size; ++x) {
+            map[x + yoff] = (BYTE)heightFunction(seed, x,y);
+        }
+    }
+}
+
+void GenerateColor(int size, const BYTE *height, BYTE *color) {
     if (color == nullptr) return;
     if (height == nullptr) return;
     if (size < 1) return;
+
+    heightToColor(size, height, color);
+    blur(size, color);
 }
 
 void MapSynthInit() {
