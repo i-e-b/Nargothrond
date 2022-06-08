@@ -14,13 +14,18 @@ void HandleEvent(SDL_Event *event, volatile ApplicationGlobalState *state) {
     //     https://wiki.libsdl.org/SDL_EventType
 
     if (event->type == SDL_KEYDOWN) {
+        auto sym = event->key.keysym.sym;
         state->showColor = false;
         state->showHeight = false;
 
-        if (event->key.keysym.sym == SDLK_c) {
+        if (sym == SDLK_c) {
             state->showColor = true;
-        } else if (event->key.keysym.sym == SDLK_h){
+        } else if (sym == SDLK_h){
             state->showHeight = true;
+        } else if (sym == SDLK_LEFT){
+            state->scene->camAngle += 0.1;
+        } else if (sym == SDLK_RIGHT){
+            state->scene->camAngle -= 0.1;
         }
     }
 
@@ -102,7 +107,7 @@ void RenderFrame(volatile ApplicationGlobalState *state, SDL_Surface *screen){
         showHeightMap(state, screen);
     } else {
         // render the scene
-
+        RenderScene(state, screen);
     }
 
 }
@@ -120,9 +125,10 @@ void StartUp(volatile ApplicationGlobalState *state) {
     state->heightMap = (BYTE*)malloc(512*512);
     state->colorMap = (BYTE*)malloc(512*512*3);
 
+    state->mapSize = 512;
     GenerateHeight(512, 5, state->heightMap);
     GenerateColor(512, state->heightMap, state->colorMap);
-    InitScene(&(state->scene));
+    InitScene(state);
 }
 
 void Shutdown(volatile ApplicationGlobalState *state) {

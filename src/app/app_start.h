@@ -4,6 +4,7 @@
 #include <SDL.h>
 #include "scene.h"
 #include "types/general.h"
+#include "shared_types.h"
 
 /******************************************
  * Application settings                   *
@@ -22,19 +23,6 @@ const int SCREEN_HEIGHT = 600;
 #define MULTI_THREAD 1
 // If defined, the output screen will remain visible after the test run is complete
 #define WAIT_AT_END 1
-
-// This is the global state shared between the core and your app.
-// The running flag is required, you can add extra fields as you need.
-typedef struct ApplicationGlobalState {
-    bool running;
-
-    int mapSize; // height and width of color and height maps
-    BYTE* colorMap; // color map
-    BYTE* heightMap; // height map
-    bool showColor;
-    bool showHeight;
-    NgScene scene;
-} ApplicationGlobalState;
 
 
 /******************************************
