@@ -43,6 +43,9 @@ void UpdateModel(volatile ApplicationGlobalState *state, int frame, uint32_t fra
     if (frame < 0) return;
     if (frameTime < 0) return;
 
+    state->scene->camX += 1;
+    if (state->scene->camX >= 1024) state->scene->camX = 0;
+
     MMPop(); // wipe out anything we allocated in this frame.
 }
 

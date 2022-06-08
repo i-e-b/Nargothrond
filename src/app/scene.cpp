@@ -22,7 +22,8 @@ inline int wrapToBounds(double dv, int limit){
     // mirroring at edges, so we don't need to have a nice wrapping texture
     if (v < 0) v = -v;
     v = v % (limit * 2);
-    if (v >= limit) v = limit - (v - limit);
+    if (v == limit) return limit - 1;
+    if (v > limit) v = limit - (v - limit);
     return v;
 }
 
@@ -47,7 +48,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
     double persp = 0;
 
     // calculate stepsize in x and y direction
-    double dr = sqrt(dx * dx + dy * dy); // distance between start and end point
+    double dr = sqrtf64(dx * dx + dy * dy); // distance between start and end point
     dx = dx / dr;
     dy = dy / dr;
 
@@ -72,7 +73,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
     int x,y,idx,cidx;
 
     // local references
-    int camHeight = scene->camHeight;
+    double camHeight = scene->camHeight;
     double camV = scene->camPitch;
 
     int mapWidth = state->mapSize;
@@ -91,11 +92,11 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
 
         x = wrapToBounds(x1, mapWidth);
         y = wrapToBounds(y1, mapHeight);
-        idx = (y * width) + x;
+        idx = (y * mapWidth) + x;
         cidx = idx * 3;
 
         // get height
-        double terrainHeight = 0;
+        double terrainHeight;
         if (scene->interpolateHeightMap) {
 
             double fx = x1 - trunc(x1);
@@ -123,7 +124,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
             terrainHeight = heights[idx] * scene->heightScale;
         }
         if (scene->sharperPeaks) {
-            terrainHeight *= terrainHeight / 127;
+            terrainHeight *= terrainHeight / 127.0;
         }
         h = camHeight - terrainHeight;  // lack of interpolation here causes banding artifacts close up
 
@@ -215,10 +216,10 @@ void InitScene(volatile ApplicationGlobalState *state){
 
     scene-> VIEW_DISTANCE = 600; // how far to draw. More is slower but you can see further (range: 400 to 2000)
 
-    scene-> doInterlacing = false; // render alternate columns per frame for motion blur
-    scene-> doJitter = false; // scatter color sample points
-    scene-> doFog = false; // fade to background near draw limit
-    scene-> doSmoothing = false; // fade between texels on contiguous slopes
+    scene-> doInterlacing = true; // render alternate columns per frame for motion blur
+    scene-> doJitter = true; // scatter color sample points
+    scene-> doFog = true; // fade to background near draw limit
+    scene-> doSmoothing = true; // fade between texels on contiguous slopes
     scene-> interpolateHeightMap =false; // sample multiple height map points for a smoother render
     scene-> sharperPeaks = false; // change scaling to make hills into mountains
     scene-> interlace = 1;
@@ -248,12 +249,13 @@ void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
     int di = scene->doInterlacing ? 2 : 1;
     int width = screen->w;
 
-    int camX = scene->camX;
-    int camY = scene->camX;
+    double camX = scene->camX;
+    double camY = scene->camY;
     double camAngle = scene->camAngle;
 
     for (int i = scene->interlace; i < width; i+= di){ //increment by 2 for interlacing
-        double x3d = (i - width / 2.0) * 2.25;
+        double hw = width / 2.0;
+        double x3d = (i - hw) * 2.25;
 
         double rotX =  cosAngle * x3d + sinAngle * y3d;
         double rotY = -sinAngle * x3d + cosAngle * y3d;
@@ -262,7 +264,7 @@ void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
         rayCast(state, scene, screen,
                 i, camX, camY,
                 camX + rotX, camY + rotY,
-                y3d / sqrt(x3d * x3d + y3d * y3d),
+                y3d / sqrtf64(x3d * x3d + y3d * y3d),
                 camAngle);
     }
 
