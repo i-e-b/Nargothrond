@@ -13,7 +13,18 @@ void HandleEvent(SDL_Event *event, volatile ApplicationGlobalState *state) {
     // see lib/SDL2-devel-2.0.9-VC/SDL2-2.0.9/include/SDL_events.h
     //     https://wiki.libsdl.org/SDL_EventType
 
-    if (event->type == SDL_KEYDOWN || event->type == SDL_QUIT) {
+    if (event->type == SDL_KEYDOWN) {
+        state->showColor = false;
+        state->showHeight = false;
+
+        if (event->key.keysym.sym == SDLK_c) {
+            state->showColor = true;
+        } else if (event->key.keysym.sym == SDLK_h){
+            state->showHeight = true;
+        }
+    }
+
+    if (event->type == SDL_QUIT) { // window close button
         state->running = false;
         return;
     }
@@ -27,22 +38,13 @@ void UpdateModel(volatile ApplicationGlobalState *state, int frame, uint32_t fra
     if (frame < 0) return;
     if (frameTime < 0) return;
 
-    state->t++;
-    if (state->t > 10) state->t = 0;
-
     MMPop(); // wipe out anything we allocated in this frame.
 }
 
-void RenderFrame(volatile ApplicationGlobalState *state,SDL_Surface *screen){
-    // todo: stuff
-    if (state == nullptr) return;
-    if (screen == nullptr) return;
+void showColorMap(volatile ApplicationGlobalState *state, SDL_Surface *screen){
 
     auto base = (BYTE*)screen->pixels;
-//    auto hmap = state->heightMap;
     auto cmap = state->colorMap;
-
-    int j;
 
     int rowBytes = screen->pitch;
 
@@ -52,14 +54,13 @@ void RenderFrame(volatile ApplicationGlobalState *state,SDL_Surface *screen){
         int bmpY = y*rowBytes;
 
         for (int x = 0; x < 512; ++x) {
-            //char h = hmap[x+mapY];
             int i = (x*3)+mapY;
 
             BYTE r = cmap[i++];
             BYTE g = cmap[i++];
             BYTE b = cmap[i++];
 
-            j = (x*4) + bmpY;
+            int j = (x*4) + bmpY;
             base[j++] = b; // B
             base[j++] = g; // G
             base[j++] = r; // R
@@ -67,12 +68,50 @@ void RenderFrame(volatile ApplicationGlobalState *state,SDL_Surface *screen){
     }
 }
 
+void showHeightMap(volatile ApplicationGlobalState *state, SDL_Surface *screen){
+    auto base = (BYTE*)screen->pixels;
+    auto hmap = state->heightMap;
+
+    int rowBytes = screen->pitch;
+
+    // for now, show the height map
+    for (int y = 0; y < 512; ++y) {
+        int mapY = y*512;
+        int bmpY = y*rowBytes;
+
+        for (int x = 0; x < 512; ++x) {
+            BYTE h = hmap[x+mapY];
+
+            int j = (x*4) + bmpY;
+            base[j++] = h; // B
+            base[j++] = h; // G
+            base[j++] = h; // R
+        }
+    }
+}
+
+
+void RenderFrame(volatile ApplicationGlobalState *state, SDL_Surface *screen){
+    // todo: stuff
+    if (state == nullptr) return;
+    if (screen == nullptr) return;
+
+    if (state->showColor){
+        showColorMap(state, screen);
+    } else if (state->showHeight) {
+        showHeightMap(state, screen);
+    } else {
+        // render the scene
+
+    }
+
+}
+
 void StartUp(volatile ApplicationGlobalState *state) {
     StartManagedMemory(); // use the semi-auto memory helper
     //MMPush(10 MEGABYTE); // memory for global state
 
     if (state == nullptr) return;
-    state->t = 1;
 
     MapSynthInit();
 
@@ -83,6 +122,7 @@ void StartUp(volatile ApplicationGlobalState *state) {
 
     GenerateHeight(512, 5, state->heightMap);
     GenerateColor(512, state->heightMap, state->colorMap);
+    InitScene(&(state->scene));
 }
 
 void Shutdown(volatile ApplicationGlobalState *state) {

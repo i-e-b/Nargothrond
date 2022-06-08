@@ -28,11 +28,12 @@ const int SCREEN_HEIGHT = 600;
 typedef struct ApplicationGlobalState {
     bool running;
 
-    int t; // temp for test
-
     int mapSize; // height and width of color and height maps
     BYTE* colorMap; // color map
     BYTE* heightMap; // height map
+    bool showColor;
+    bool showHeight;
+    NgScene scene;
 } ApplicationGlobalState;
 
 
