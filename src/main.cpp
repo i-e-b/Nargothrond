@@ -16,6 +16,9 @@ volatile bool quit = false; // Quit flag
 volatile bool drawDone = false; // Quit complete flag
 volatile int writeBuffer = 0; // which buffer is being written (other will be read)
 volatile int frameWait = 0; // frames waiting
+
+uint64_t renderIdleTicks = 0;
+uint64_t renderedFrame = 0;
 char* base = nullptr; // graphics base
 int rowBytes = 0;
 
@@ -32,6 +35,7 @@ int RenderWorker(void*)
     while (!quit) {
         while (!quit && frameWait < 1) {
             SDL_Delay(1); // pause the thread until a new scan buffer is ready
+            renderIdleTicks++;
         }
 
         SDL_LockMutex(gDataLock);
@@ -43,6 +47,7 @@ int RenderWorker(void*)
         SDL_LockMutex(gDataLock);
         frameWait = 0;
         SDL_UnlockMutex(gDataLock);
+        renderedFrame++;
     }
     drawDone = true;
     return 0;
@@ -152,8 +157,10 @@ int main()
 
     long endTicks = SDL_GetTicks();
     float avgFPS = static_cast<float>(frame) / (static_cast<float>(endTicks - startTicks) / 1000.f);
-    float idleFraction = static_cast<float>(idleTime) / (15.f*static_cast<float>(frame));
-    cout << "\r\nFPS ave = " << avgFPS << "\r\nIdle % = " << (100 * idleFraction);
+    float logicIdleRatio = static_cast<float>(idleTime) / (15.f*static_cast<float>(frame));
+    float drawIdleAve = static_cast<float>(renderIdleTicks) / (static_cast<float>(renderedFrame));
+    cout << "\r\nFPS ave = " << avgFPS << "\r\nLogic idle % = " << (100 * logicIdleRatio);
+    cout << "\r\nFrame drawn = " << renderedFrame << "\r\nDraw idle ave = " << (drawIdleAve) << "ms";
 
     // Let the app deallocate etc
     Shutdown(&gState);

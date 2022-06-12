@@ -11,8 +11,8 @@
  ******************************************/
 
 // Screen dimension constants
-const int SCREEN_WIDTH = 800;
-const int SCREEN_HEIGHT = 600;
+const int SCREEN_WIDTH = 1280;//800;
+const int SCREEN_HEIGHT = 720;//600;
 
 // Ideal frame duration for frame limit, in milliseconds
 #define FRAME_TIME_TARGET 15
