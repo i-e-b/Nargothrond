@@ -22,7 +22,7 @@ const int SCREEN_HEIGHT = 600;//720;
 // If defined, renderer will run in a parallel thread. Otherwise, draw and render will run in sequence
 #define MULTI_THREAD 1
 // If defined, the output screen will remain visible after the test run is complete
-#define WAIT_AT_END 1
+//#define WAIT_AT_END 1
 
 
 /******************************************

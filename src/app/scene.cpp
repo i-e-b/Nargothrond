@@ -16,30 +16,19 @@ inline void setPixel(SDL_Surface *screen, int x, int y, int r, int g, int b){
     base[idx  ] = (BYTE)r;
 }
 
-
-inline int wrapToBounds(double dv, int limit){
-    int v = (int)dv;
-
-    // mirroring at edges, so we don't need to have a nice wrapping texture
-    if (v < 0) v = -v;
-    v = v % (limit * 2);
-    if (v == limit) return limit - 1;
-    if (v > limit) v = limit - (v - limit);
-    return v;
-}
-
 // line = vertical span index (x in render space)
 // x1,y1 = camera location (in map space)
 // x2,y2 = camera look
 // d = height of camera
 // xDir = camera direction
-void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surface *screen,
+void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surface *screen, int shadowDarkness,
              int line, double x1, double y1, double x2, double y2, double d /*,double xDir*/) { //xDir used for sky texture
 
     if (state == nullptr || scene == nullptr) return;
     int height = screen->h;
     BYTE* heights = state->heightMap; // todo: this should be in scene, not state
     BYTE* colors = state->colorMap; // todo: this should be in scene, not state
+    BYTE* shadows = state->shadowMap;
 
     // x1, y1, x2, y2 are the start and end points on map for ray
     double dx = x2 - x1;
@@ -90,14 +79,24 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
         x1 = x1+dx;
         y1 = y1+dy;
 
-        x = wrapToBounds(x1, mapWidth);
-        y = wrapToBounds(y1, mapHeight);
+        // TODO: pick a map from a tileset based on global X,Y
+        //x = ((int)fabs(x1)) % mapWidth; // repeat, mirrored across 0
+        //y = ((int)fabs(y1)) % mapHeight;
+        x = (int)x1;
+        y = (int)y1;
+        if (x < 0 || x >= mapWidth) break; // show only one tile
+        if (y < 0 || y >= mapHeight) break;
         idx = (y * mapWidth) + x;
         cidx = idx * 3;
 
         // get height
         double terrainHeight;
         terrainHeight = heights[idx] * scene->heightScale;
+
+        bool water = heights[idx] <= scene->waterLevel;
+        if (water) terrainHeight = scene->waterLevel;
+
+        int shadow = (int)shadows[idx]; // 1 if dark, 0 if bright. Used to bit shift
 
         if (scene->sharperPeaks) {
             terrainHeight *= terrainHeight / 127.0;
@@ -119,6 +118,12 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
             // read color from image
             int r = colors[cidx], g = colors[cidx+1], b =colors[cidx+2];
 
+            if (shadow){
+                r = max(0, r - shadowDarkness);
+                g = max(0, g - shadowDarkness);
+                b = max(0, b - shadowDarkness);
+            }
+
             // fog effect
             if ((scene->doFog) && (i > dlimit) ){ // near the fog limit
                 fo = dfog*(i-dlimit); // calculate the fog blend by distance
@@ -133,11 +138,11 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
                 // get the next color, interpolate between that and the previous
                 // TODO: instead of smoothing, we should use a 'fine' texture
 
-                // Jitter samples to make smoothing look better (otherwise orthagonal directions look stripey)
+                // Jitter samples to make smoothing look better (otherwise orthogonal directions look stripey)
                 if ((scene->doJitter) && (i < dlimit)) { // don't jitter if drawing fog
                     // pull nearby sample to blend
-                    int jx = wrapToBounds(x1+(dy/2), mapWidth);
-                    int jy = wrapToBounds(y1+(dx/2), mapHeight);
+                    int jx = (int)fabs(x1+(dy/2)) % mapWidth;
+                    int jy = (int)fabs(y1+(dx/2)) % mapHeight;
                     int jidx = 3 * ((jy*mapWidth)+jx);
                     r = (r + colors[jidx]) / 2;
                     g = (g + colors[jidx+1]) / 2;
@@ -188,10 +193,13 @@ void InitScene(volatile ApplicationGlobalState *state){
     scene-> VIEW_DISTANCE = 600; // how far to draw. More is slower but you can see further (range: 400 to 2000)
 
     scene-> doInterlacing = true; // render alternate columns per frame for motion blur
-    scene-> doJitter = false; // scatter color sample points
+    scene-> doJitter = true; // scatter color sample points
     scene-> doFog = true; // fade to background near draw limit
-    scene-> doSmoothing = false; // fade between textels on contiguous slopes
+    scene-> doSmoothing = false; // fade between texels on contiguous slopes
     scene-> sharperPeaks = false; // change scaling to make hills into mountains
+
+    scene->waterLevel = 51; //51;
+    scene->shadowAngle = 45;
 
     scene-> interlace = 0;
     scene-> aspect = 512; // camera aspect. Smaller = fisheye
@@ -222,6 +230,8 @@ void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
     double camX = scene->camX;
     double camY = scene->camY;
     //double camAngle = scene->camAngle;
+    int angleOffNoon = (int)(90 - state->scene->shadowAngle);
+    int shadowDarkness = max(0, (angleOffNoon*angleOffNoon) / 100);
 
     for (int i = scene->interlace; i < width; i+= di){ //increment by 2 for interlacing
         double hw = width / 2.0;
@@ -231,6 +241,7 @@ void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
         double rotY = -sinAngle * x3d + cosAngle * y3d;
 
         rayCast(state, scene, screen,
+                shadowDarkness,
                 i, camX, camY,
                 camX + rotX, camY + rotY,
                 y3d / sqrt(x3d * x3d + y3d * y3d));

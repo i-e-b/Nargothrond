@@ -89,7 +89,7 @@ int heightFunction(int seed, int x, int y) {
                (a * a * c * 0.1) - // crinkles only at the top
                0.1; // adjust water line
 
-    if (v < 0.2) v = 0.199; // water line
+    //if (v < 0.2) v = 0.199; // water line TODO: handle water-level limit in render phase
 
     int iv = (int)(v*255);
     if (iv > 255) return 255;
@@ -113,23 +113,16 @@ inline rgbSample get(const BYTE* map, int idx){
 void heightToColor(int size, const BYTE* heightMap, BYTE* colorMap) {
     int rowWidth = size * 3; // number of bytes in an image row
 
-    double falloff = 0.004; // how steep the shadows are. lower = sun is closer to horizon.
-    double fade = 0.2; // how sharp the peaks of shadows are. Lower = smoother
-    double maxDark = 0.65; // how dark shadows can get
-
-    // main color + shadow
+    // main color
     for (int y = 0; y < size; y++) {
         int yoff = y * rowWidth;
         int yoffH = y * size;
-        double shadow = 0; // what height is in shadow
-        double shadowDarkness = 1.0; // how dark is the shadow (1.0 = light, 0.0=black)
 
         for (int x = 0, xoff = 0; x < size; x++, xoff += 3) {
             int hidx = yoffH + x;
             int cidx = yoff + xoff;
 
             double s = heightMap[hidx] / 255.0; // sample height, put in range 0..1
-            shadow = max(s, shadow) - falloff;
 
             // really simple green->white
             double r = s * s * s * 800 - 50;
@@ -153,19 +146,33 @@ void heightToColor(int size, const BYTE* heightMap, BYTE* colorMap) {
             g = max(0, min(255, g));
             b = max(0, min(255, b));
 
+            set(colorMap, cidx, (int) r, (int) g, (int) b);
+        }
+    }
+}
+
+// falloff = how steep the shadows are. lower = sun is closer to horizon.
+void heightToShadow(int size, int direction, double falloff, const BYTE* heightMap, BYTE* shadowMap) {
+    int start = 0;
+    int end = size-1;
+    int initial = direction > 0 ? start : end;
+
+    for (int y = 0; y < size; y++) {
+        int yoff = y * size;
+        double shadow = 0; // what height is in shadow
+
+        for (int x = initial; x >= start && x <= end; x += direction) {
+            int idx = yoff + x;
+
+            double s = heightMap[idx] / 255.0; // sample height, put in range 0..1
+            shadow = max(s, shadow) - falloff;
+
             // darker if in shadow
             if (shadow > s) {
-                shadowDarkness -= fade; // fade shadow in. Makes hill peaks looks less weird
-                if (shadowDarkness < maxDark) shadowDarkness = maxDark;
-
-                r = max(0, r * shadowDarkness);
-                g = max(0, g * shadowDarkness);
-                b = max(0, b * shadowDarkness);
+                shadowMap[idx] = (BYTE)1;
             } else {
-                shadowDarkness = 1.0; // reset for next shadow
+                shadowMap[idx] = (BYTE)0;
             }
-
-            set(colorMap, cidx, (int) r, (int) g, (int) b);
         }
     }
 }
@@ -227,6 +234,20 @@ void GenerateColor(int size, const BYTE *height, BYTE *color) {
 
     heightToColor(size, height, color);
     blur(size, color);
+}
+
+// sun angle 0..180
+void GenerateShadow(int size, const BYTE *height, BYTE *shadow, double sunAngle) {
+    if (shadow == nullptr) return;
+    if (height == nullptr) return;
+    if (size < 1) return;
+
+    // TODO: pass in a sun-point, or time of day and calculate the falloff and direction
+    double sunrad = 0.017453 * sunAngle;
+    double falloff = sin(sunrad) / 100;
+    int direction = sunAngle < 90 ? 1 : -1;
+
+    heightToShadow(size, direction, falloff, height, shadow);
 }
 
 void MapSynthInit() {

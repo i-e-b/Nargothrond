@@ -16,4 +16,7 @@ void GenerateHeight(int size, int seed, BYTE* map);
 // Create a color map to match a height map
 void GenerateColor(int size, const BYTE* height, BYTE* color);
 
+// Create a shadow map to match a height map
+void GenerateShadow(int size, const BYTE* height, BYTE* shadow, double sunAngle);
+
 #endif //SDLBASE_MAP_SYNTH_H
