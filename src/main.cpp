@@ -154,21 +154,24 @@ int main()
     ////////////////////////////////////////////////////////////////////////////////////////////////////
 
     quit = true;
+
+    SDL_Delay(500); // give the render thread time to stop
     frameWait = 100;
 
-    long endTicks = SDL_GetTicks();
+    auto endTicks = SDL_GetTicks();
     float avgFPS = static_cast<float>(frame) / (static_cast<float>(endTicks - startTicks) / 1000.0f);
     float logicIdleRatio = static_cast<float>(idleTime) / (15.0f*static_cast<float>(frame));
     float drawIdleAve = static_cast<float>(renderTicks) / (static_cast<float>(renderedFrames));
     cout << "\r\nFPS ave = " << avgFPS << "\r\nLogic idle % = " << (100 * logicIdleRatio);
     cout << "\r\nFrame drawn = " << renderedFrames << "\r\nDraw time ave = " << (drawIdleAve) << "ms (greater than 15 is under-speed)";
 
-    // Let the app deallocate etc
-    Shutdown(&gState);
 
 #ifdef MULTI_THREAD
     while (!drawDone) { SDL_Delay(100); }// wait for the renderer to finish
 #endif
+
+    // Let the app deallocate etc
+    Shutdown(&gState);
 
 #ifdef WAIT_AT_END
     // Wait for user to close the window

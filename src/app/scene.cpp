@@ -2,6 +2,7 @@
 // Created by Iain on 05/06/2022.
 //
 #include "scene.h"
+#include "types/MemoryManager.h"
 
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))
@@ -33,10 +34,10 @@ inline int wrapToBounds(double dv, int limit){
 // d = height of camera
 // xDir = camera direction
 void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surface *screen,
-             int line, double x1, double y1, double x2, double y2, double d, double xDir) {
+             int line, double x1, double y1, double x2, double y2, double d /*,double xDir*/) { //xDir used for sky texture
 
+    if (state == nullptr || scene == nullptr) return;
     int height = screen->h;
-    int width = screen->w;
     BYTE* heights = state->heightMap; // todo: this should be in scene, not state
     BYTE* colors = state->colorMap; // todo: this should be in scene, not state
 
@@ -44,11 +45,11 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
     double dx = x2 - x1;
     double dy = y2 - y1;
 
-    double dp = abs(d) / 100.0;
+    double dp = fabs(d) / 100.0;
     double persp = 0;
 
     // calculate step size in x and y direction
-    double dr = sqrtf64(dx * dx + dy * dy); // distance between start and end point
+    double dr = sqrt(dx * dx + dy * dy); // distance between start and end point
     dx = dx / dr;
     dy = dy / dr;
 
@@ -68,7 +69,6 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
     double dlimit = viewDistance * 0.7;
     double dfog = 1 / (viewDistance * 0.3);
     double fo=0,fs = 1;
-    int lastI = 0;
 
     int x,y,idx,cidx;
 
@@ -113,8 +113,8 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
             z3 = floor(z3); // get on to pixel bounds
 
             // bounds of vertical strip, limited to buffer bounds
-            int ir = min(hbound, max(0,z3));
-            int iz = min(hbound, ymin);
+            int ir = (int)(min(hbound, max(0,z3)));
+            int iz = (int)(min(hbound, ymin));
 
             // read color from image
             int r = colors[cidx], g = colors[cidx+1], b =colors[cidx+2];
@@ -170,7 +170,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
         } else { // obscured
             gap = 1;
         }
-        ymin = min(ymin, z3);
+        ymin = min(ymin, (int)z3);
         if (ymin < 1) { break; } // early exit: the screen is full
     } // end of draw distance
 
@@ -184,7 +184,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
 }
 
 void InitScene(volatile ApplicationGlobalState *state){
-    auto scene = (NgScenePtr)malloc(sizeof(NgScene));
+    auto scene = (NgScenePtr)ArenaAllocate(MMCurrent(),sizeof(NgScene));
     scene-> VIEW_DISTANCE = 600; // how far to draw. More is slower but you can see further (range: 400 to 2000)
 
     scene-> doInterlacing = true; // render alternate columns per frame for motion blur
@@ -208,7 +208,6 @@ void InitScene(volatile ApplicationGlobalState *state){
 }
 
 void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
-    if (state == nullptr) return;
     auto scene = state->scene;
     if (scene == nullptr) return;
 
@@ -222,7 +221,7 @@ void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
 
     double camX = scene->camX;
     double camY = scene->camY;
-    double camAngle = scene->camAngle;
+    //double camAngle = scene->camAngle;
 
     for (int i = scene->interlace; i < width; i+= di){ //increment by 2 for interlacing
         double hw = width / 2.0;
@@ -234,8 +233,8 @@ void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
         rayCast(state, scene, screen,
                 i, camX, camY,
                 camX + rotX, camY + rotY,
-                y3d / sqrtf64(x3d * x3d + y3d * y3d),
-                camAngle);
+                y3d / sqrt(x3d * x3d + y3d * y3d));
+        /*, camAngle);*/ // for sky texture
     }
 
     // alternate scanlines each frame
@@ -243,8 +242,5 @@ void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
 }
 
 
-void MoveCamera(NgScenePtr scene, Vec3 &eye, Vec3 &lookAt) {
-
-}
 
 

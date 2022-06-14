@@ -9,7 +9,7 @@
 
 /*
     Exposes replacements for malloc, calloc and free.
-    Maintains a stack of memory arenas, where allocations and deallocations can be made; and all deallocated at once.
+    Maintains a stack of memory arenas, where allocations and de-allocations can be made; and all deallocated at once.
 
     Uses the most recently pushed Arena.
     Uses the stdlib versions if no arenas have been pushed, or if not set up.
@@ -47,10 +47,24 @@
      .
 */
 
+//------[ START UP AND SHUTDOWN ]------//
+
 // Ensure the memory manager is ready. It starts with an empty stack
 void StartManagedMemory();
 // Close all arenas and return to stdlib memory
 void ShutdownManagedMemory();
+
+
+//------[ ALLOCATING MEMORY ]------//
+
+// Allocate memory for a given size
+// This will either allocate in the current Arena, or in the large object store (if over 64K)
+void* MMAllocate(size_t byteCount);
+
+// Dereference or deallocate a pointer. This may be slow if referencing a pointer not in the current Arena.
+void MMDrop(void* ptr);
+
+//------[ ARENA MANAGEMENT ]------//
 
 // Start a new arena, keeping memory and state of any existing ones
 bool MMPush(size_t arenaMemory);

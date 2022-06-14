@@ -21,7 +21,7 @@
 #define GIGABYTE * 1073741824UL
 
 // Enable diagnostics
-#define ARENA_DEBUG 1
+#define ARENA_DEBUG 0
 
 typedef struct Arena Arena;
 typedef Arena* ArenaPtr;

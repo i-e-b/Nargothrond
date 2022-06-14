@@ -241,7 +241,7 @@ bool ArenaDereference(Arena* a, void* ptr) {
     return true;
 }
 
-// Add a reference to memory, to delay deallocation. When no references are left, the memory may be deallocated
+// Add a reference to memory, to delay de-allocation. When no references are left, the memory may be deallocated
 bool ArenaReference(Arena* a, void* ptr) {
     if (a == nullptr) return false;
     if (ptr == nullptr) return false;

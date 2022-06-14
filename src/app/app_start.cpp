@@ -1,7 +1,5 @@
+
 #include "app_start.h"
-
-#include <cstdlib>
-
 #include "src/types/MemoryManager.h"
 #include "scene.h"
 #include "synth/map_synth.h"
@@ -126,16 +124,17 @@ void RenderFrame(volatile ApplicationGlobalState *state, SDL_Surface *screen){
 
 void StartUp(volatile ApplicationGlobalState *state) {
     StartManagedMemory(); // use the semi-auto memory helper
-    //MMPush(10 MEGABYTE); // memory for global state
+    MMPush(10 MEGABYTE); // memory for global state
 
     if (state == nullptr) return;
 
     MapSynthInit();
 
     // synthesise maps. This should be dynamic based on wider area later
-    //state->heightMap = (char*)ArenaAllocateAndClear(MMCurrent(), 512*512); // the very basic allocator doesn't handle big maps.
-    state->heightMap = (BYTE*)malloc(512*512);
-    state->colorMap = (BYTE*)malloc(512*512*3);
+    state->heightMap = (BYTE*)MMAllocate(512*512); // the very basic allocator doesn't handle big maps. TODO: fix this
+    //state->heightMap = (BYTE*)malloc(512*512);
+    state->colorMap = (BYTE*)MMAllocate(512*512*3);
+    state->shadowMap = (BYTE*)MMAllocate(512*512);
 
     state->mapSize = 512;
     GenerateHeight(512, 5, state->heightMap);
@@ -144,10 +143,9 @@ void StartUp(volatile ApplicationGlobalState *state) {
 }
 
 void Shutdown(volatile ApplicationGlobalState *state) {
+    state->scene = nullptr;
     MapSynthDispose();
 
     ShutdownManagedMemory(); // deallocate everything
-
-    if (state == nullptr) return;
 }
 

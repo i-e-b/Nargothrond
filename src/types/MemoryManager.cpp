@@ -9,13 +9,16 @@
 #include <iostream>
 #endif
 
-static volatile Vector* MEMORY_STACK = nullptr;
+static Vector* MEMORY_STACK = nullptr;
+static Vector* LARGE_OBJECT_LIST = nullptr;
 static volatile int LOCK = 0;
 
 typedef Arena* ArenaPtr;
+typedef void* VoidPtr;
 
 RegisterVectorStatics(Vec)
 RegisterVectorFor(ArenaPtr, Vec)
+RegisterVectorFor(VoidPtr, Vec)
 
 // Ensure the memory manager is ready. It starts with an empty stack
 void StartManagedMemory() {
@@ -23,22 +26,45 @@ void StartManagedMemory() {
     if (MEMORY_STACK != nullptr) return;
     LOCK = 1;
 
-    MEMORY_STACK = VecAllocateArena_ArenaPtr(NewArena((128 KILOBYTES)));
+    auto baseArena = NewArena((128 KILOBYTES));
+    MEMORY_STACK = VecAllocateArena_ArenaPtr(baseArena);
+    LARGE_OBJECT_LIST = VecAllocateArena_VoidPtr(baseArena);
+    VecPush_ArenaPtr(MEMORY_STACK, baseArena);
 
     LOCK = 0;
 }
 // Close all arenas and return to stdlib memory
 void ShutdownManagedMemory() {
     if (LOCK != 0) return;
-    if (MEMORY_STACK == nullptr) return;
+    LOCK = 1;
 
-    auto* vec = (Vector*)MEMORY_STACK;
-    ArenaPtr a = nullptr;
-    while (VecPop_ArenaPtr(vec, &a)) {
-        DropArena(&a);
+    if (LARGE_OBJECT_LIST != nullptr){
+        auto *vec = (Vector *) LARGE_OBJECT_LIST;
+        LARGE_OBJECT_LIST = nullptr;
+        void* a = nullptr;
+        while (VecPop_VoidPtr(vec, &a)) {
+            free(a);
+        }
+        VecDeallocate(vec);
     }
-    VecDeallocate(vec);
-    MEMORY_STACK = nullptr;
+
+    if (MEMORY_STACK != nullptr) {
+        auto *vec = (Vector *) MEMORY_STACK;
+        MEMORY_STACK = nullptr;
+        ArenaPtr a = nullptr;
+        ArenaPtr baseArena = nullptr;
+
+        // cut the base arena out of the vector
+        VecDequeue_ArenaPtr(vec, &baseArena);
+
+        // drop all other arenas
+        while (VecPop_ArenaPtr(vec, &a)) {
+            DropArena(&a);
+        }
+
+        // drop the base arena (takes MEMORY_STACK and LARGE_OBJECT_LIST with it)
+        DropArena(&baseArena);
+    }
 
     LOCK = 0;
 }
@@ -67,6 +93,7 @@ bool MMPush(size_t arenaMemory) {
 // Deallocate the most recent arena, restoring the previous
 void MMPop() {
     if (MEMORY_STACK == nullptr) return;
+    if (VecLength(MEMORY_STACK) <= 1) return; // don't pop off our own arena
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "LoopDoesntUseConditionVariableInspection"
     while (LOCK != 0) {}
@@ -125,6 +152,43 @@ Arena* MMCurrent() {
 
     LOCK = 0;
     return result;
+}
+
+void *MMAllocate(size_t byteCount) {
+    if (byteCount > ARENA_ZONE_SIZE) { // stdlib allocation and add to large object list
+        auto ptr = malloc(byteCount);
+        if (ptr != nullptr) VecPush_VoidPtr(LARGE_OBJECT_LIST, ptr);
+        return ptr;
+    } else { // use the small bump allocator
+        auto current = MMCurrent();
+        if (current == nullptr) return nullptr;
+        return ArenaAllocate(current, byteCount);
+    }
+}
+
+// Check if the current area has this pointer, then scan down the stack.
+// Finally, try the large object list (which should not see alloc/dealloc in common code)
+void MMDrop(void *ptr) {
+    auto current = MMCurrent();
+    if (current != nullptr){
+        auto offset = ArenaPtrToOffset(current, ptr);
+        if (offset > 0) { // found it
+            ArenaDereference(current, ptr);
+            return;
+        }
+        // TODO: hunt further down the stacks, return if found
+    }
+
+    // scan through the large object list, `free` if found
+    uint32_t len = VectorLength(LARGE_OBJECT_LIST);
+    for (uint32_t i = 0; i < len; ++i) {
+        auto lob = VecGet_VoidPtr(LARGE_OBJECT_LIST, i);
+        if (lob == ptr){
+            VecSet_VoidPtr(LARGE_OBJECT_LIST, i, nullptr, nullptr); // null this item so we don't double free. We could trim the array, but it shouldn't be needed.
+            free(lob);
+            return;
+        }
+    }
 }
 
 // Allocate memory array, cleared to zeros
