@@ -13,7 +13,8 @@ void HandleEvent(SDL_Event *event, volatile ApplicationGlobalState *state) {
     // see lib/SDL2-devel-2.0.9-VC/SDL2-2.0.9/include/SDL_events.h
     //     https://wiki.libsdl.org/SDL_EventType
 
-    if (event->type == SDL_KEYDOWN) {
+    if (event->type == SDL_KEYDOWN) { // both down and repeat
+        //if (event->key.repeat > 0) return;
         auto sym = event->key.keysym.sym;
         state->showColor = false;
         state->showHeight = false;
@@ -26,6 +27,14 @@ void HandleEvent(SDL_Event *event, volatile ApplicationGlobalState *state) {
             state->scene->camAngle += 0.1;
         } else if (sym == SDLK_RIGHT){
             state->scene->camAngle -= 0.1;
+        } else if (sym == SDLK_UP) {
+            state->scene->camPitch += 10;
+        } else if (sym == SDLK_DOWN) {
+            state->scene->camPitch -= 10;
+        } else if (sym == SDLK_LEFTBRACKET){
+            state->scene->camHeight -= 10;
+        } else if (sym == SDLK_RIGHTBRACKET) {
+            state->scene->camHeight += 10;
         }
     }
 
@@ -35,7 +44,7 @@ void HandleEvent(SDL_Event *event, volatile ApplicationGlobalState *state) {
     }
 }
 
-void UpdateModel(volatile ApplicationGlobalState *state, int frame, uint32_t frameTime) {
+void UpdateModel(volatile ApplicationGlobalState *state, uint32_t frame, uint32_t frameTime) {
     MMPush(1 MEGABYTE); // prepare a per-frame bump allocator
 
     // todo: stuff

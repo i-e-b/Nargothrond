@@ -17,8 +17,8 @@ volatile bool drawDone = false; // Quit complete flag
 volatile int writeBuffer = 0; // which buffer is being written (other will be read)
 volatile int frameWait = 0; // frames waiting
 
-uint64_t renderIdleTicks = 0;
-uint64_t renderedFrame = 0;
+uint64_t renderTicks = 0;
+uint64_t renderedFrames = 0;
 char* base = nullptr; // graphics base
 int rowBytes = 0;
 
@@ -34,20 +34,21 @@ int RenderWorker(void*)
     SDL_Delay(150); // delay wake up
     while (!quit) {
         while (!quit && frameWait < 1) {
-            SDL_Delay(1); // pause the thread until a new scan buffer is ready
-            renderIdleTicks++;
+            SDL_Delay(1); // pause the thread until a new frame is ready
         }
 
-        SDL_LockMutex(gDataLock);
-        SDL_UnlockMutex(gDataLock);
+        uint32_t st = SDL_GetTicks();
 
         RenderFrame(&gState, screenSurface);
         SDL_UpdateWindowSurface(window); // update the surface -- need to do this every frame.
 
+        uint32_t frameSplit = SDL_GetTicks();
+        renderTicks += frameSplit - st;
+
         SDL_LockMutex(gDataLock);
         frameWait = 0;
         SDL_UnlockMutex(gDataLock);
-        renderedFrame++;
+        renderedFrames++;
     }
     drawDone = true;
     return 0;
@@ -156,11 +157,11 @@ int main()
     frameWait = 100;
 
     long endTicks = SDL_GetTicks();
-    float avgFPS = static_cast<float>(frame) / (static_cast<float>(endTicks - startTicks) / 1000.f);
-    float logicIdleRatio = static_cast<float>(idleTime) / (15.f*static_cast<float>(frame));
-    float drawIdleAve = static_cast<float>(renderIdleTicks) / (static_cast<float>(renderedFrame));
+    float avgFPS = static_cast<float>(frame) / (static_cast<float>(endTicks - startTicks) / 1000.0f);
+    float logicIdleRatio = static_cast<float>(idleTime) / (15.0f*static_cast<float>(frame));
+    float drawIdleAve = static_cast<float>(renderTicks) / (static_cast<float>(renderedFrames));
     cout << "\r\nFPS ave = " << avgFPS << "\r\nLogic idle % = " << (100 * logicIdleRatio);
-    cout << "\r\nFrame drawn = " << renderedFrame << "\r\nDraw idle ave = " << (drawIdleAve) << "ms";
+    cout << "\r\nFrame drawn = " << renderedFrames << "\r\nDraw time ave = " << (drawIdleAve) << "ms (greater than 15 is under-speed)";
 
     // Let the app deallocate etc
     Shutdown(&gState);

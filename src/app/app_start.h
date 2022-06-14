@@ -11,8 +11,8 @@
  ******************************************/
 
 // Screen dimension constants
-const int SCREEN_WIDTH = 1280;//800;
-const int SCREEN_HEIGHT = 720;//600;
+const int SCREEN_WIDTH = 800;//1280;
+const int SCREEN_HEIGHT = 600;//720;
 
 // Ideal frame duration for frame limit, in milliseconds
 #define FRAME_TIME_TARGET 15
@@ -32,7 +32,7 @@ const int SCREEN_HEIGHT = 720;//600;
 // Called once at app start
 void StartUp(volatile ApplicationGlobalState *state);
 // Called for every frame. Update the scene ready for next render
-void UpdateModel(volatile ApplicationGlobalState *state, int frame, uint32_t frameTime);
+void UpdateModel(volatile ApplicationGlobalState *state, uint32_t frame, uint32_t frameTime);
 
 // Called for every frame. Draw scene to buffer
 void RenderFrame(volatile ApplicationGlobalState *state,SDL_Surface *screen);

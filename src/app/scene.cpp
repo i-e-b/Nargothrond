@@ -37,8 +37,8 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
 
     int height = screen->h;
     int width = screen->w;
-    BYTE* heights = state->heightMap; // todo: this should be in scene
-    BYTE* colors = state->colorMap; // todo: this should be in scene
+    BYTE* heights = state->heightMap; // todo: this should be in scene, not state
+    BYTE* colors = state->colorMap; // todo: this should be in scene, not state
 
     // x1, y1, x2, y2 are the start and end points on map for ray
     double dx = x2 - x1;
@@ -47,7 +47,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
     double dp = abs(d) / 100.0;
     double persp = 0;
 
-    // calculate stepsize in x and y direction
+    // calculate step size in x and y direction
     double dr = sqrtf64(dx * dx + dy * dy); // distance between start and end point
     dx = dx / dr;
     dy = dy / dr;
@@ -97,32 +97,8 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
 
         // get height
         double terrainHeight;
-        if (scene->interpolateHeightMap) {
+        terrainHeight = heights[idx] * scene->heightScale;
 
-            double fx = x1 - trunc(x1);
-            double fy = y1 - trunc(y1);
-
-            if (dx < 0) fx = 1 - fx;
-            if (dy < 0) fy = 1 - fy;
-
-            double dfx = 1 - fx;
-            double dfy = 1 - fy;
-
-            int ix = wrapToBounds(x1+dx, mapWidth);
-            int iy = wrapToBounds(y1+dy, mapHeight);
-
-            int s1 = heights[( y * width) +  x];
-            int s2 = heights[( y * width) + ix];
-            int s3 = heights[(iy * width) +  x];
-            int s4 = heights[(iy * width) + ix];
-
-            terrainHeight = (s1 * dfx * dfy) + (s2 * fx * dfy) +
-                            (s3 * dfx *  fy) + (s4 * fx * fy);
-
-            terrainHeight *= scene->heightScale;
-        } else {
-            terrainHeight = heights[idx] * scene->heightScale;
-        }
         if (scene->sharperPeaks) {
             terrainHeight *= terrainHeight / 127.0;
         }
@@ -209,20 +185,15 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
 
 void InitScene(volatile ApplicationGlobalState *state){
     auto scene = (NgScenePtr)malloc(sizeof(NgScene));
-    scene-> MAX_HEIGHT = 400;
-    scene-> MIN_HEIGHT = 10;
-    scene-> MAX_PITCH = -200;
-    scene-> MIN_PITCH = 150;
-
     scene-> VIEW_DISTANCE = 600; // how far to draw. More is slower but you can see further (range: 400 to 2000)
 
     scene-> doInterlacing = true; // render alternate columns per frame for motion blur
-    scene-> doJitter = true; // scatter color sample points
+    scene-> doJitter = false; // scatter color sample points
     scene-> doFog = true; // fade to background near draw limit
-    scene-> doSmoothing = true; // fade between texels on contiguous slopes
-    scene-> interpolateHeightMap =false; // sample multiple height map points for a smoother render
+    scene-> doSmoothing = false; // fade between textels on contiguous slopes
     scene-> sharperPeaks = false; // change scaling to make hills into mountains
-    scene-> interlace = 1;
+
+    scene-> interlace = 0;
     scene-> aspect = 512; // camera aspect. Smaller = fisheye
     scene-> heightScale = 1.1; // scale of slopes. Higher = taller mountains.
 
@@ -246,7 +217,7 @@ void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
     double cosAngle = cos(scene->camAngle);
 
     double y3d = -(scene->aspect) * 1.5;
-    int di = scene->doInterlacing ? 2 : 1;
+    int di = (scene->doInterlacing) ? (2) : (1);
     int width = screen->w;
 
     double camX = scene->camX;
@@ -259,7 +230,6 @@ void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
 
         double rotX =  cosAngle * x3d + sinAngle * y3d;
         double rotY = -sinAngle * x3d + cosAngle * y3d;
-
 
         rayCast(state, scene, screen,
                 i, camX, camY,

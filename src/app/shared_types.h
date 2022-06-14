@@ -14,19 +14,15 @@ typedef struct Vec3 {
 
 
 typedef struct NgScene {
-    int MAX_HEIGHT = 400;
-    int MIN_HEIGHT = 10;
-    int MAX_PITCH = -200;
-    int MIN_PITCH = 150;
+    int VIEW_DISTANCE; // how far to draw. More is slower but you can see further (range: 400 to 2000)
 
-    int VIEW_DISTANCE = 600; // how far to draw. More is slower but you can see further (range: 400 to 2000)
+    bool doInterlacing; // render alternate columns per frame for motion blur
+    bool doJitter; // scatter color sample points
+    bool doFog; // fade to background near draw limit
+    bool doSmoothing; // fade between textels on contiguous slopes
+    bool sharperPeaks; // change scaling to make hills into mountains
 
-    bool doInterlacing = true; // render alternate columns per frame for motion blur
-    bool doJitter = true; // scatter color sample points
-    bool doFog = true; // fade to background near draw limit
-    bool doSmoothing = true; // fade between texels on contiguous slopes
-    bool interpolateHeightMap = true; // sample multiple height map points for a smoother render
-    bool sharperPeaks = true; // change scaling to make hills into mountains
+
     int interlace = 1;
     int aspect = 512; // camera aspect. Smaller = fisheye
     double heightScale = 1.1; // scale of slopes. Higher = taller mountains.
@@ -49,6 +45,7 @@ typedef struct ApplicationGlobalState {
 
     int mapSize; // height and width of color and height maps
     BYTE* colorMap; // color map
+    BYTE* shadowMap; // light and shadow values. TODO: move out of colorMap.
     BYTE* heightMap; // height map
     bool showColor;
     bool showHeight;
