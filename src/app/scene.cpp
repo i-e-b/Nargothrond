@@ -53,6 +53,9 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
 
     // sky texture x coord
     //int sx = floor( (-xDir*(1 / 3.141592) + line) % skyWidth)*skyWidth;
+    int skyR = scene->sky_R;
+    int skyG = scene->sky_G;
+    int skyB = scene->sky_B;
 
     // fog parameters
     double dlimit = viewDistance * 0.7;
@@ -119,6 +122,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
             int r = colors[cidx], g = colors[cidx+1], b =colors[cidx+2];
 
             if (shadow){
+                // TODO: idea: have a dark & light floor texture, and blend between them.
                 r = max(0, r - shadowDarkness);
                 g = max(0, g - shadowDarkness);
                 b = max(0, b - shadowDarkness);
@@ -129,9 +133,9 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
                 fo = dfog*(i-dlimit); // calculate the fog blend by distance
                 fs = 1 - fo;
                 //idx = (sx) + (ir % skyHeight)
-                r = (int)((r * fs) + (fo * 127));//sky_R[idx]) //127,127,255
-                g = (int)((g * fs) + (fo * 127));//sky_G[idx])
-                b = (int)((b * fs) + (fo * 255));//sky_B[idx])
+                r = (int)((r * fs) + (fo * skyR));//sky_R[idx])
+                g = (int)((g * fs) + (fo * skyG));//sky_G[idx])
+                b = (int)((b * fs) + (fo * skyB));//sky_B[idx])
             }
 
             if (ir+1 < iz) { // large textels, interpolate for smoothness
@@ -139,7 +143,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
                 // TODO: instead of smoothing, we should use a 'fine' texture
 
                 // Jitter samples to make smoothing look better (otherwise orthogonal directions look stripey)
-                if ((scene->doJitter) && (i < dlimit)) { // don't jitter if drawing fog
+                /*if ((scene->doJitter) && (i < dlimit)) { // don't jitter if drawing fog
                     // pull nearby sample to blend
                     int jx = (int)fabs(x1+(dy/2)) % mapWidth;
                     int jy = (int)fabs(y1+(dx/2)) % mapHeight;
@@ -147,7 +151,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
                     r = (r + colors[jidx]) / 2;
                     g = (g + colors[jidx+1]) / 2;
                     b = (b + colors[jidx+2]) / 2;
-                }
+                }*/
 
                 if (scene->doSmoothing) {
                     if (gap > 0) { pr=r;pg=g;pb=b; } // no prev colors
@@ -184,7 +188,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
         //idx = (sx) + (i % skyHeight)
         //imageData:setPixel(line, i % height, sky_R[idx],sky_G[idx],sky_B[idx])
         // todo: synth a sky texture too
-        setPixel(screen, line, i % height, 127,127,255);
+        setPixel(screen, line, i % height, skyR,skyG,skyB);
     }
 }
 
@@ -231,7 +235,24 @@ void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
     double camY = scene->camY;
     //double camAngle = scene->camAngle;
     int angleOffNoon = (int)(90 - state->scene->shadowAngle);
-    int shadowDarkness = max(0, (angleOffNoon*angleOffNoon) / 100);
+    int shadowDarkness = min(255, max(0, (angleOffNoon*angleOffNoon) / 200));
+
+
+    scene->sky_R = 80; // general gloom
+    scene->sky_G = 20;
+    scene->sky_B = 0;
+    double sunrad = 0.017453 * state->scene->shadowAngle;
+    if (state->scene->shadowAngle > 0 && state->scene->shadowAngle < 180) {
+        double csr = cos(sunrad + 3.1415);
+        int b = 300 - (int) fabs( csr * 300);
+        int g = 275 - (int)fabs(csr * 255);
+        int r = 155 - (int)fabs(csr * 75);
+
+        scene->sky_R = min(127, r);
+        scene->sky_G = min(127, g);
+        scene->sky_B = min(255, b);
+    }
+
 
     for (int i = scene->interlace; i < width; i+= di){ //increment by 2 for interlacing
         double hw = width / 2.0;

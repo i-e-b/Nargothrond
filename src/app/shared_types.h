@@ -39,6 +39,7 @@ typedef struct NgScene {
     double camPitch = 0.0; // pitch. Positive = looking down
 
     double sceneTime = 0.0;
+    int sky_R = 0, sky_G = 0, sky_B = 0; // sky color, set based on time of day.
 
     // viewpoint movement
     int moveForward = 0; // -1..1, -1 being backwards
