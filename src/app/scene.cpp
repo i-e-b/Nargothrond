@@ -8,13 +8,14 @@
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
 // set a pixel in the SDL surface
+/*
 inline void setPixel(SDL_Surface *screen, int x, int y, int r, int g, int b){
     BYTE* base = (BYTE*)screen->pixels;
     int idx = (y * screen->pitch) + (x*4);
     base[idx++] = (BYTE)b;
     base[idx++] = (BYTE)g;
     base[idx  ] = (BYTE)r;
-}
+}*/
 
 // line = vertical span index (x in render space)
 // x1,y1 = camera location (in map space)
@@ -29,6 +30,11 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
     BYTE* heights = state->heightMap; // todo: this should be in scene, not state
     BYTE* colors = state->colorMap; // todo: this should be in scene, not state
     BYTE* shadows = state->shadowMap;
+
+    // output pixel map
+    BYTE* base = (BYTE*)screen->pixels;
+    int xpos = line * 4; // pixel column
+    int rowBytes = screen->pitch;
 
     // x1, y1, x2, y2 are the start and end points on map for ray
     double dx = x2 - x1;
@@ -50,6 +56,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
     int gap = 1; // marks when we should break slope colour interpolation
     int hbound = height - 1;
     int viewDistance = scene->VIEW_DISTANCE;
+    int ypos = hbound * rowBytes; // y-offset in output pixel map. We tick this down, so have to be careful not to overdraw anywhere.
 
     // sky texture x coord
     //int sx = floor( (-xDir*(1 / 3.141592) + line) % skyWidth)*skyWidth;
@@ -117,6 +124,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
             // bounds of vertical strip, limited to buffer bounds
             int ir = (int)(min(hbound, max(0,z3)));
             int iz = (int)(min(hbound, ymin));
+            //ypos = iz * rowBytes; // if this is needed, we're overdrawing somewhere?
 
             // read color from image
             int r = colors[cidx], g = colors[cidx+1], b =colors[cidx+2];
@@ -138,42 +146,18 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
                 b = (int)((b * fs) + (fo * skyB));//sky_B[idx])
             }
 
-            if (ir+1 < iz) { // large textels, interpolate for smoothness
-                // get the next color, interpolate between that and the previous
-                // TODO: instead of smoothing, we should use a 'fine' texture
-
-                // Jitter samples to make smoothing look better (otherwise orthogonal directions look stripey)
-                /*if ((scene->doJitter) && (i < dlimit)) { // don't jitter if drawing fog
-                    // pull nearby sample to blend
-                    int jx = (int)fabs(x1+(dy/2)) % mapWidth;
-                    int jy = (int)fabs(y1+(dx/2)) % mapHeight;
-                    int jidx = 3 * ((jy*mapWidth)+jx);
-                    r = (r + colors[jidx]) / 2;
-                    g = (g + colors[jidx+1]) / 2;
-                    b = (b + colors[jidx+2]) / 2;
-                }*/
-
-                if (scene->doSmoothing) {
-                    if (gap > 0) { pr=r;pg=g;pb=b; } // no prev colors
-                    int pc = (iz - ir) + 1;
-                    int sr = (r - pr)/pc;
-                    int sg = (g - pg)/pc;
-                    int sb = (b - pb)/pc;
-                    for (int k = iz; k >= ir; k--) {
-                        setPixel(screen, line, k, pr,pg,pb);
-                        pr = pr + sr;
-                        pg = pg + sg;
-                        pb = pb + sb;
-                    }
-                } else {// no smoothing, just fill in with sample color
-                    for (int k = iz; k >= ir; k--) {
-                        setPixel(screen, line, 0|k, r,g,b);
-                    }
+            if (ir+1 < iz) { // large texels, repeat texture sample
+                // TODO: instead of repeating, we should use a 'fine' texture
+                //       this could be based on another map, which would let us do walls etc.
+                for (int k = iz; k > ir; k--) {
+                    base[ypos+xpos  ] = (BYTE)b; base[ypos+xpos+1] = (BYTE)g; base[ypos+xpos+2] = (BYTE)r;
+                    ypos -= rowBytes;
                 }
-
-            } else { // small textels. Could supersample for quality?
+            } else { // small texels. Could super-sample for quality?
                 pr=r;pg=g;pb=b; // copy previous colors
-                setPixel(screen, line, ir, r,g,b);
+
+                base[ypos+xpos  ] = (BYTE)b; base[ypos+xpos+1] = (BYTE)g; base[ypos+xpos+2] = (BYTE)r;
+                ypos -= rowBytes;
             }
             gap = 0;
         } else { // obscured
@@ -184,11 +168,9 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
     } // end of draw distance
 
     // now if we didn't get to the top of the screen, fill in with sky
-    for (int i = ymin; i >= 0; i--) {
-        //idx = (sx) + (i % skyHeight)
-        //imageData:setPixel(line, i % height, sky_R[idx],sky_G[idx],sky_B[idx])
-        // todo: synth a sky texture too
-        setPixel(screen, line, i % height, skyR,skyG,skyB);
+    while (ypos > 0) {
+        base[ypos+xpos  ] = (BYTE)skyB; base[ypos+xpos+1] = (BYTE)skyG; base[ypos+xpos+2] = (BYTE)skyR;
+        ypos -= rowBytes;
     }
 }
 
@@ -197,16 +179,14 @@ void InitScene(volatile ApplicationGlobalState *state){
     scene-> VIEW_DISTANCE = 600; // how far to draw. More is slower but you can see further (range: 400 to 2000)
 
     scene-> doInterlacing = true; // render alternate columns per frame for motion blur
-    scene-> doJitter = true; // scatter color sample points
     scene-> doFog = true; // fade to background near draw limit
-    scene-> doSmoothing = false; // fade between texels on contiguous slopes
     scene-> sharperPeaks = false; // change scaling to make hills into mountains
 
     scene->waterLevel = 51; //51;
     scene->shadowAngle = 45;
 
     scene-> interlace = 0;
-    scene-> aspect = 512; // camera aspect. Smaller = fisheye
+    scene-> aspect = SCREEN_WIDTH; // camera aspect. Smaller = fisheye. Ideally equal to screen width
     scene-> heightScale = 1.1; // scale of slopes. Higher = taller mountains.
 
     // camera
@@ -217,6 +197,23 @@ void InitScene(volatile ApplicationGlobalState *state){
     scene-> camPitch = 0.0; // pitch. Positive = looking down
 
     state->scene = scene;
+}
+
+void SetSkyColor(volatile const ApplicationGlobalState *state, NgScenePtr scene) {
+    scene->sky_R = 80; // general gloom
+    scene->sky_G = 20;
+    scene->sky_B = 0;
+    double sunrad = 0.017453 * state->scene->shadowAngle;
+    if (state->scene->shadowAngle > 0 && state->scene->shadowAngle < 180) {
+        double csr = cos(sunrad + 3.1415);
+        int b = 300 - (int) fabs( csr * 300);
+        int g = 275 - (int)fabs(csr * 255);
+        int r = 155 - (int)fabs(csr * 75);
+
+        scene->sky_R = min(127, r);
+        scene->sky_G = min(127, g);
+        scene->sky_B = min(255, b);
+    }
 }
 
 void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
@@ -237,22 +234,7 @@ void RenderScene(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
     int angleOffNoon = (int)(90 - state->scene->shadowAngle);
     int shadowDarkness = min(255, max(0, (angleOffNoon*angleOffNoon) / 200));
 
-
-    scene->sky_R = 80; // general gloom
-    scene->sky_G = 20;
-    scene->sky_B = 0;
-    double sunrad = 0.017453 * state->scene->shadowAngle;
-    if (state->scene->shadowAngle > 0 && state->scene->shadowAngle < 180) {
-        double csr = cos(sunrad + 3.1415);
-        int b = 300 - (int) fabs( csr * 300);
-        int g = 275 - (int)fabs(csr * 255);
-        int r = 155 - (int)fabs(csr * 75);
-
-        scene->sky_R = min(127, r);
-        scene->sky_G = min(127, g);
-        scene->sky_B = min(255, b);
-    }
-
+    SetSkyColor(state, scene);
 
     for (int i = scene->interlace; i < width; i+= di){ //increment by 2 for interlacing
         double hw = width / 2.0;

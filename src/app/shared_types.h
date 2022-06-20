@@ -18,9 +18,7 @@ typedef struct NgScene {
     int VIEW_DISTANCE = SET_IN_INIT; // how far to draw. More is slower, but you can see further (range: 400 to 2000)
 
     bool doInterlacing = SET_IN_INIT; // render alternate columns per frame for motion blur
-    bool doJitter = SET_IN_INIT; // scatter color sample points
     bool doFog = SET_IN_INIT; // fade to background near draw limit
-    bool doSmoothing = SET_IN_INIT; // fade between texels on contiguous slopes
     bool sharperPeaks = SET_IN_INIT; // change scaling to make hills into mountains
 
 
