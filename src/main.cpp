@@ -14,7 +14,6 @@ SDL_Surface* screenSurface;// The surface contained by the window
 
 volatile bool quit = false; // Quit flag
 volatile bool drawDone = false; // Quit complete flag
-volatile int writeBuffer = 0; // which buffer is being written (other will be read)
 volatile int frameWait = 0; // frames waiting
 
 uint64_t renderTicks = 0;
@@ -45,9 +44,7 @@ int RenderWorker(void*)
         uint32_t frameSplit = SDL_GetTicks();
         renderTicks += frameSplit - st;
 
-        SDL_LockMutex(gDataLock);
         frameWait = 0;
-        SDL_UnlockMutex(gDataLock);
         renderedFrames++;
     }
     drawDone = true;
@@ -114,22 +111,16 @@ int main()
         uint32_t fst = SDL_GetTicks();
         // Wait for frame render to finish, then swap buffers and do next
 
-#ifdef MULTI_THREAD
-        if (frameWait < 1) {
-            // Swap buffers, we will render one to pixels while we're issuing draw commands to the other
-            // If render can't keep up with frameWait, we skip this frame and draw to the same buffer.
-            SDL_LockMutex(gDataLock);                               // lock
-            writeBuffer = 1 - writeBuffer;                          // switch buffer
 
-            frameWait = 1;                                          // signal to the other thread that the buffer has changed
-            SDL_UnlockMutex(gDataLock);                             // unlock
-        }
-#endif
 
         // Pick the write buffer and set switch points:
         UpdateModel(&gState, frame++, fTime);
 
-#ifndef MULTI_THREAD
+#ifdef MULTI_THREAD
+        if (frameWait < 1) {
+            frameWait = 1; // signal to the other thread that it can start
+        }
+#else
         // if not threaded, render immediately
         RenderBuffer(writingScanBuf, base);
         SDL_UpdateWindowSurface(window);

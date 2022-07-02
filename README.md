@@ -22,9 +22,7 @@ Experiment with a rogue-like
 
 ## Tech todo
 
-- remove scanline layer system
 - add z buffer like thing
-- port texture synth from js sketch
-- port voxel engine from js sketch
 - add screen-to-map lookup buffer during render
-- sprite stuff?
+  - should have screen-point to map-coord, and on screen depth lookup.
+- sprite stuff? Start from top of sprite and scan down until depth is closer than sprite base.

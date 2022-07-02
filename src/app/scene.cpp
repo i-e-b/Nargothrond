@@ -7,16 +7,6 @@
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
-// set a pixel in the SDL surface
-/*
-inline void setPixel(SDL_Surface *screen, int x, int y, int r, int g, int b){
-    BYTE* base = (BYTE*)screen->pixels;
-    int idx = (y * screen->pitch) + (x*4);
-    base[idx++] = (BYTE)b;
-    base[idx++] = (BYTE)g;
-    base[idx  ] = (BYTE)r;
-}*/
-
 // line = vertical span index (x in render space)
 // x1,y1 = camera location (in map space)
 // x2,y2 = camera look
@@ -27,9 +17,15 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
 
     if (state == nullptr || scene == nullptr) return;
     int height = screen->h;
+
+    // Maps we read from:
     BYTE* heights = state->heightMap; // todo: this should be in scene, not state
     BYTE* colors = state->colorMap; // todo: this should be in scene, not state
     BYTE* shadows = state->shadowMap;
+
+    // Maps we write to
+    BYTE* depths = state->depthMap;
+    uint32_t* coords = state->coordMap;
 
     // output pixel map
     BYTE* base = (BYTE*)screen->pixels;
@@ -52,8 +48,6 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
     // also the highest thing we've drawn to prevent over-paint (0 is max height)
     double z3 = ymin+1;     // projected Z height of point under consideration
     double h=0;
-    int pr=0,pg=0,pb=0;
-    int gap = 1; // marks when we should break slope colour interpolation
     int hbound = height - 1;
     int viewDistance = scene->VIEW_DISTANCE;
     int ypos = hbound * rowBytes; // y-offset in output pixel map. We tick this down, so have to be careful not to overdraw anywhere.
@@ -151,17 +145,22 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
                 //       this could be based on another map, which would let us do walls etc.
                 for (int k = iz; k > ir; k--) {
                     base[ypos+xpos  ] = (BYTE)b; base[ypos+xpos+1] = (BYTE)g; base[ypos+xpos+2] = (BYTE)r;
+
+                    // TODO: back-maps
+                    //depths[???] = ???
+                    //coords[???] = ???
                     ypos -= rowBytes;
                 }
             } else { // small texels. Could super-sample for quality?
-                pr=r;pg=g;pb=b; // copy previous colors
-
                 base[ypos+xpos  ] = (BYTE)b; base[ypos+xpos+1] = (BYTE)g; base[ypos+xpos+2] = (BYTE)r;
+
+                // TODO: back-maps
+                //depths[???] = ???
+                //coords[???] = ???
                 ypos -= rowBytes;
             }
-            gap = 0;
         } else { // obscured
-            gap = 1;
+            //gap = 1;
         }
         ymin = min(ymin, (int)z3);
         if (ymin < 1) { break; } // early exit: the screen is full

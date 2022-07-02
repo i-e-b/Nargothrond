@@ -62,6 +62,10 @@ typedef struct ApplicationGlobalState {
     bool showHeight;
     bool showShadow;
     NgScenePtr scene;
+
+    // screen-sized back reference maps
+    BYTE* depthMap;         // distance from camera
+    uint32_t *coordMap;     // screen point to 16:16 map coords
 } ApplicationGlobalState;
 
 

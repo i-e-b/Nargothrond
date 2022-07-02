@@ -19,8 +19,12 @@ void HandleEvent(SDL_Event *event, volatile ApplicationGlobalState *state) {
 
         if (sym == SDLK_q) {
             state->scene->shadowAngle += 1;
+            // update shadow with time. This should really be done on another thread, and rarely.
+            GenerateShadow(512, state->heightMap, state->shadowMap, state->scene->shadowAngle);
         } else if (sym == SDLK_e){
             state->scene->shadowAngle -= 1;
+            // update shadow with time. This should really be done on another thread, and rarely.
+            GenerateShadow(512, state->heightMap, state->shadowMap, state->scene->shadowAngle);
         }
 
         if (event->key.repeat > 0) return;
@@ -92,13 +96,6 @@ void UpdateModel(volatile ApplicationGlobalState *state, uint32_t frame, uint32_
     if (frameTime < 0) return;
 
     state->scene->sceneTime += (double) frameTime / 1000;
-    /*
-    double time = state->scene->sceneTime;
-
-    double xxx = (time - trunc(time)) * 100;*/
-
-    // update shadow with time. This should really be done on another thread, and rarely.
-    GenerateShadow(512, state->heightMap, state->shadowMap, state->scene->shadowAngle);
 
     // movement
     auto dx = sin(state->scene->camAngle);
@@ -171,17 +168,16 @@ void showHeightMap(volatile ApplicationGlobalState *state, SDL_Surface *screen) 
 
 void showShadowMap(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
     auto base = (BYTE *) screen->pixels;
-    auto hmap = state->shadowMap;
+    auto shadowMap = state->shadowMap;
 
     int rowBytes = screen->pitch;
 
-    // for now, show the height map
     for (int y = 0; y < 512; ++y) {
         int mapY = y * 512;
         int bmpY = y * rowBytes;
 
         for (int x = 0; x < 512; ++x) {
-            BYTE h = hmap[x + mapY];
+            BYTE h = shadowMap[x + mapY];
 
             int j = (x * 4) + bmpY;
             base[j++] = h * 0xFF; // B
@@ -193,7 +189,6 @@ void showShadowMap(volatile ApplicationGlobalState *state, SDL_Surface *screen) 
 
 
 void RenderFrame(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
-    // todo: stuff
     if (state == nullptr) return;
     if (screen == nullptr) return;
 
@@ -222,6 +217,10 @@ void StartUp(volatile ApplicationGlobalState *state) {
     state->heightMap = (BYTE *) MMAllocate(512 * 512);
     state->colorMap = (BYTE *) MMAllocate(512 * 512 * 3);
     state->shadowMap = (BYTE *) MMAllocate(512 * 512);
+
+    // screen-to-map lookups
+    state->depthMap = (BYTE*) MMAllocate(SCREEN_HEIGHT*SCREEN_WIDTH);
+    state->coordMap = (uint32_t*) MMAllocate(SCREEN_HEIGHT*SCREEN_WIDTH*sizeof(uint32_t));
     InitScene(state);
 
     state->mapSize = 512;
