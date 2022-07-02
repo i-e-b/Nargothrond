@@ -24,13 +24,14 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
     BYTE* shadows = state->shadowMap;
 
     // Maps we write to
-    BYTE* depths = state->depthMap;
+    uint32_t* depths = state->depthMap;
     uint32_t* coords = state->coordMap;
 
     // output pixel map
     BYTE* base = (BYTE*)screen->pixels;
     int xpos = line * 4; // pixel column
     int rowBytes = screen->pitch;
+    int scrWidth = screen->w;
 
     // x1, y1, x2, y2 are the start and end points on map for ray
     double dx = x2 - x1;
@@ -50,6 +51,7 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
     double h=0;
     int hbound = height - 1;
     int viewDistance = scene->VIEW_DISTANCE;
+    int yline = hbound * scrWidth;
     int ypos = hbound * rowBytes; // y-offset in output pixel map. We tick this down, so have to be careful not to overdraw anywhere.
 
     // sky texture x coord
@@ -147,16 +149,18 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
                     base[ypos+xpos  ] = (BYTE)b; base[ypos+xpos+1] = (BYTE)g; base[ypos+xpos+2] = (BYTE)r;
 
                     // TODO: back-maps
-                    //depths[???] = ???
+                    depths[yline+line] = i;
                     //coords[???] = ???
+                    yline -= scrWidth;
                     ypos -= rowBytes;
                 }
             } else { // small texels. Could super-sample for quality?
                 base[ypos+xpos  ] = (BYTE)b; base[ypos+xpos+1] = (BYTE)g; base[ypos+xpos+2] = (BYTE)r;
 
                 // TODO: back-maps
-                //depths[???] = ???
+                depths[yline+line] = i;
                 //coords[???] = ???
+                yline -= scrWidth;
                 ypos -= rowBytes;
             }
         } else { // obscured
@@ -169,6 +173,9 @@ void rayCast(volatile ApplicationGlobalState *state, NgScenePtr scene, SDL_Surfa
     // now if we didn't get to the top of the screen, fill in with sky
     while (ypos > 0) {
         base[ypos+xpos  ] = (BYTE)skyB; base[ypos+xpos+1] = (BYTE)skyG; base[ypos+xpos+2] = (BYTE)skyR;
+        depths[yline+line] = (BYTE)-1;
+
+        yline -= scrWidth;
         ypos -= rowBytes;
     }
 }

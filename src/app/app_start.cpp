@@ -16,6 +16,7 @@ void HandleEvent(SDL_Event *event, volatile ApplicationGlobalState *state) {
         state->showColor = false;
         state->showHeight = false;
         state->showShadow = false;
+        state->showDepth = false;
 
         if (sym == SDLK_q) {
             state->scene->shadowAngle += 1;
@@ -35,6 +36,8 @@ void HandleEvent(SDL_Event *event, volatile ApplicationGlobalState *state) {
             state->showHeight = true;
         } else if (sym == SDLK_l) {
             state->showShadow = true;
+        } else if (sym == SDLK_v) {
+            state->showDepth = true;
         } else if (sym == SDLK_LEFT) {
             state->scene->moveTurnLeft = 1;
         } else if (sym == SDLK_RIGHT) {
@@ -187,6 +190,28 @@ void showShadowMap(volatile ApplicationGlobalState *state, SDL_Surface *screen) 
     }
 }
 
+void showDepthMap(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
+    auto base = (BYTE *) screen->pixels;
+    auto depthMap = state->depthMap;
+    int rowPix = SCREEN_WIDTH;
+
+    int rowBytes = screen->pitch;
+
+    for (int y = 0; y < SCREEN_HEIGHT; ++y) {
+        int mapY = y * rowPix;
+        int bmpY = y * rowBytes;
+
+        for (int x = 0; x < SCREEN_WIDTH; ++x) {
+            BYTE h = depthMap[x + mapY];
+
+            int j = (x * 4) + bmpY;
+            base[j++] = h * 0xFF; // B
+            base[j++] = h * 0xFF; // G
+            base[j++] = h * 0xFF; // R
+        }
+    }
+}
+
 
 void RenderFrame(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
     if (state == nullptr) return;
@@ -198,6 +223,8 @@ void RenderFrame(volatile ApplicationGlobalState *state, SDL_Surface *screen) {
         showHeightMap(state, screen);
     } else if (state->showShadow) {
         showShadowMap(state, screen);
+    } else if (state->showDepth) {
+        showDepthMap(state, screen);
     } else {
         // render the scene
         RenderScene(state, screen);
@@ -219,7 +246,7 @@ void StartUp(volatile ApplicationGlobalState *state) {
     state->shadowMap = (BYTE *) MMAllocate(512 * 512);
 
     // screen-to-map lookups
-    state->depthMap = (BYTE*) MMAllocate(SCREEN_HEIGHT*SCREEN_WIDTH);
+    state->depthMap = (uint32_t*) MMAllocate(SCREEN_HEIGHT*SCREEN_WIDTH*4);
     state->coordMap = (uint32_t*) MMAllocate(SCREEN_HEIGHT*SCREEN_WIDTH*sizeof(uint32_t));
     InitScene(state);
 
